@@ -1,29 +1,11 @@
-# Job Application Evaluation Agents
+## Projects in This Repository
 
-## 📌 Overview
-This project demonstrates an **AI-powered job application evaluation workflow** using the **OpenAI Agents SDK**.  
-It simulates three job applicants (junior, mid-level, senior), each generating their own job application email.  
-An **HR Manager agent** evaluates all applications, selects the best one, formats it into HTML, and sends it via email.
+### Deep_Research_w_Google_Search
+A deep-research workflow powered by Google Custom Search and a set of specialized agents. It plans searches, collects short page previews, and produces a long-form markdown report. Optionally, it can send the report as an HTML email, and a simple Gradio UI streams progress and the final result.
 
-The system is designed to showcase:
-- Multi-agent collaboration
-- Tool-based communication between agents
-- Agent handoffs for sequential task execution
-- Automated email subject generation & HTML formatting
+[Open folder](Deep_Research_w_Google_Search/)
 
----
+### Job_Application_Agents
+Demonstrates an AI-powered job application evaluation flow using the OpenAI Agents SDK. Three candidate agents (junior, mid-level, senior) generate their own application emails; an HR Manager agent evaluates them and selects the best. An Email Manager agent generates a subject line, converts the chosen email to HTML, and sends it via a mail tool.
 
-## 🚀 Features
-- **Three Candidate Agents**  
-  - `Junior Candidate` → Beginner-level application email  
-  - `Mid-level Candidate` → Professional mid-career application email  
-  - `Senior Candidate` → Expert-level persuasive application email
-- **HR Manager Agent**  
-  - Evaluates all candidate outputs  
-  - Selects the most effective application email  
-  - Handoffs to the Email Manager Agent
-- **Email Manager Agent**  
-  - Generates an attention-catching subject line  
-  - Converts plain text email into HTML format  
-  - Sends the email via a sending tool (SendGrid or similar)
-- **Agent Workflow Visualization** with `graphviz`
+[Open folder](Job_Application_Agents/) 
