@@ -18,4 +18,4 @@ Demonstrates Model Context Protocol (MCP) integration with OpenAI Agents SDK to 
 ### Trading_bot
 A modular trading bot demonstrating account management, market data access, and agent-driven trading workflows. Includes multiple local services (market, accounts, search, memory, fetch/push), MCP configuration, tracing utilities, and a Jupyter notebook demo.
 
-[Open folder](Trading_bot/)
+[Open folder](Trader_Agent/)
