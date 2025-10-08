@@ -1,20 +1,21 @@
 from contextlib import AsyncExitStack
-from accounts_client import read_accounts_resource, read_strategy_resource
-from tracers import make_trace_id
+from typing import Any, List
+from accounts_mcp_client import read_accounts_resource, read_strategy_resource
+from tracing import make_trace_id
 from agents import Agent, Tool, Runner, OpenAIChatCompletionsModel, trace
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 import os
 import json
 from agents.mcp import MCPServerStdio
-from templates import (
+from prompts import (
     researcher_instructions,
     trader_instructions,
     trade_message,
     rebalance_message,
     research_tool,
 )
-from mcp_params import trader_mcp_server_params, researcher_mcp_server_params
+from mcp_config import trader_mcp_server_params, researcher_mcp_server_params
 
 load_dotenv(override=True)
 
@@ -36,7 +37,7 @@ grok_client = AsyncOpenAI(base_url=GROK_BASE_URL, api_key=grok_api_key)
 gemini_client = AsyncOpenAI(base_url=GEMINI_BASE_URL, api_key=google_api_key)
 
 
-def get_model(model_name: str):
+def get_model(model_name: str) -> OpenAIChatCompletionsModel | str:
     if "/" in model_name:
         return OpenAIChatCompletionsModel(model=model_name, openai_client=openrouter_client)
     elif "deepseek" in model_name:
@@ -49,7 +50,7 @@ def get_model(model_name: str):
         return model_name
 
 
-async def get_researcher(mcp_servers, model_name) -> Agent:
+async def get_researcher(mcp_servers: List[Any], model_name: str) -> Agent:
     researcher = Agent(
         name="Researcher",
         instructions=researcher_instructions(),
@@ -59,20 +60,20 @@ async def get_researcher(mcp_servers, model_name) -> Agent:
     return researcher
 
 
-async def get_researcher_tool(mcp_servers, model_name) -> Tool:
+async def get_researcher_tool(mcp_servers: List[Any], model_name: str) -> Tool:
     researcher = await get_researcher(mcp_servers, model_name)
     return researcher.as_tool(tool_name="Researcher", tool_description=research_tool())
 
 
 class Trader:
-    def __init__(self, name: str, lastname="Trader", model_name="gpt-4o-mini"):
-        self.name = name
-        self.lastname = lastname
-        self.agent = None
-        self.model_name = model_name
-        self.do_trade = True
+    def __init__(self, name: str, lastname: str = "Trader", model_name: str = "gpt-4o-mini"):
+        self.name: str = name
+        self.lastname: str = lastname
+        self.agent: Agent | None = None
+        self.model_name: str = model_name
+        self.do_trade: bool = True
 
-    async def create_agent(self, trader_mcp_servers, researcher_mcp_servers) -> Agent:
+    async def create_agent(self, trader_mcp_servers: List[Any], researcher_mcp_servers: List[Any]) -> Agent:
         tool = await get_researcher_tool(researcher_mcp_servers, self.model_name)
         self.agent = Agent(
             name=self.name,
@@ -89,7 +90,7 @@ class Trader:
         account_json.pop("portfolio_value_time_series", None)
         return json.dumps(account_json)
 
-    async def run_agent(self, trader_mcp_servers, researcher_mcp_servers):
+    async def run_agent(self, trader_mcp_servers: List[Any], researcher_mcp_servers: List[Any]) -> None:
         self.agent = await self.create_agent(trader_mcp_servers, researcher_mcp_servers)
         account = await self.get_account_report()
         strategy = await read_strategy_resource(self.name)
@@ -100,7 +101,7 @@ class Trader:
         )
         await Runner.run(self.agent, message, max_turns=MAX_TURNS)
 
-    async def run_with_mcp_servers(self):
+    async def run_with_mcp_servers(self) -> None:
         async with AsyncExitStack() as stack:
             trader_mcp_servers = [
                 await stack.enter_async_context(
@@ -117,13 +118,13 @@ class Trader:
                 ]
                 await self.run_agent(trader_mcp_servers, researcher_mcp_servers)
 
-    async def run_with_trace(self):
+    async def run_with_trace(self) -> None:
         trace_name = f"{self.name}-trading" if self.do_trade else f"{self.name}-rebalancing"
         trace_id = make_trace_id(f"{self.name.lower()}")
         with trace(trace_name, trace_id=trace_id):
             await self.run_with_mcp_servers()
 
-    async def run(self):
+    async def run(self) -> None:
         try:
             await self.run_with_trace()
         except Exception as e:

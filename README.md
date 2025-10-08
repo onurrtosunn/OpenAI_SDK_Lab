@@ -14,3 +14,8 @@ Demonstrates an AI-powered job application evaluation flow using the OpenAI Agen
 Demonstrates Model Context Protocol (MCP) integration with OpenAI Agents SDK to enable specialized tool usage through multiple MCP servers. Features filesystem operations, web scraping with Playwright, and Brave Search capabilities. Includes a comprehensive Jupyter notebook demo with step-by-step examples for each MCP server.
 
 [Open folder](MCP_Agents/) 
+
+### Trading_bot
+A modular trading bot demonstrating account management, market data access, and agent-driven trading workflows. Includes multiple local services (market, accounts, search, memory, fetch/push), MCP configuration, tracing utilities, and a Jupyter notebook demo.
+
+[Open folder](Trading_bot/)

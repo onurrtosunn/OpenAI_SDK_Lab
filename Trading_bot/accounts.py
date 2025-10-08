@@ -2,6 +2,7 @@ from pydantic import BaseModel
 import json
 from dotenv import load_dotenv
 from datetime import datetime
+from typing import Dict, List, Tuple, Optional
 from market import get_share_price
 from database import write_account, read_account, write_log
 
@@ -29,12 +30,12 @@ class Account(BaseModel):
     name: str
     balance: float
     strategy: str
-    holdings: dict[str, int]
-    transactions: list[Transaction]
-    portfolio_value_time_series: list[tuple[str, float]]
+    holdings: Dict[str, int]
+    transactions: List[Transaction]
+    portfolio_value_time_series: List[Tuple[str, float]]
 
     @classmethod
-    def get(cls, name: str):
+    def get(cls, name: str) -> "Account":
         fields = read_account(name.lower())
         if not fields:
             fields = {
@@ -49,10 +50,10 @@ class Account(BaseModel):
         return cls(**fields)
     
     
-    def save(self):
+    def save(self) -> None:
         write_account(self.name.lower(), self.model_dump())
 
-    def reset(self, strategy: str):
+    def reset(self, strategy: str) -> None:
         self.balance = INITIAL_BALANCE
         self.strategy = strategy
         self.holdings = {}
@@ -60,24 +61,28 @@ class Account(BaseModel):
         self.portfolio_value_time_series = []
         self.save()
 
-    def deposit(self, amount: float):
-        """ Deposit funds into the account. """
+    def deposit(self, amount: float) -> str:
+        """Deposit funds into the account."""
         if amount <= 0:
             raise ValueError("Deposit amount must be positive.")
         self.balance += amount
-        print(f"Deposited ${amount}. New balance: ${self.balance}")
         self.save()
+        write_log(self.name, "account", f"Deposited {amount}")
+        return f"Deposited {amount}. Balance: {self.balance}"
 
-    def withdraw(self, amount: float):
-        """ Withdraw funds from the account, ensuring it doesn't go negative. """
+    def withdraw(self, amount: float) -> str:
+        """Withdraw funds from the account, ensuring it doesn't go negative."""
         if amount > self.balance:
             raise ValueError("Insufficient funds for withdrawal.")
         self.balance -= amount
-        print(f"Withdrew ${amount}. New balance: ${self.balance}")
         self.save()
+        write_log(self.name, "account", f"Withdrew {amount}")
+        return f"Withdrew {amount}. Balance: {self.balance}"
 
     def buy_shares(self, symbol: str, quantity: int, rationale: str) -> str:
-        """ Buy shares of a stock if sufficient funds are available. """
+        """Buy shares of a stock if sufficient funds are available."""
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive.")
         price = get_share_price(symbol)
         buy_price = price * (1 + SPREAD)
         total_cost = buy_price * quantity
@@ -101,7 +106,9 @@ class Account(BaseModel):
         return "Completed. Latest details:\n" + self.report()
 
     def sell_shares(self, symbol: str, quantity: int, rationale: str) -> str:
-        """ Sell shares of a stock if the user has enough shares. """
+        """Sell shares of a stock if the user has enough shares."""
+        if quantity <= 0:
+            raise ValueError("Quantity must be positive.")
         if self.holdings.get(symbol, 0) < quantity:
             raise ValueError(f"Cannot sell {quantity} shares of {symbol}. Not enough shares held.")
         
@@ -126,36 +133,47 @@ class Account(BaseModel):
         write_log(self.name, "account", f"Sold {quantity} of {symbol}")
         return "Completed. Latest details:\n" + self.report()
 
-    def calculate_portfolio_value(self):
-        """ Calculate the total value of the user's portfolio. """
+    def calculate_portfolio_value(self) -> float:
+        """Calculate the total value of the user's portfolio."""
         total_value = self.balance
         for symbol, quantity in self.holdings.items():
             total_value += get_share_price(symbol) * quantity
         return total_value
 
-    def calculate_profit_loss(self, portfolio_value: float):
-        """ Calculate profit or loss from the initial spend. """
-        initial_spend = sum(transaction.total() for transaction in self.transactions)
-        return portfolio_value - initial_spend - self.balance
+    def calculate_profit_loss(self) -> float:
+        """Calculate profit/loss relative to cash injected and current holdings.
 
-    def get_holdings(self):
-        """ Report the current holdings of the user. """
-        return self.holdings
+        Interprets PnL as current total portfolio value minus net cash invested.
+        """
+        portfolio_value = self.calculate_portfolio_value()
+        cash_flows = 0.0
+        for txn in self.transactions:
+            # Positive quantity means cash outflow (buy), negative means inflow (sell)
+            cash_flows += txn.total()
+        # Net invested is cash outflows minus current cash balance increase from deposits/withdrawals.
+        # As a simple approximation, we compute PnL as portfolio_value - (initial_balance + net_deposits)
+        # Here we approximate net_deposits via balance movements captured in state; since we do not
+        # track deposits/withdraws separately historically, we treat cash_flows as net position cost.
+        return portfolio_value - (INITIAL_BALANCE + cash_flows)
 
-    def get_profit_loss(self):
-        """ Report the user's profit or loss at any point in time. """
+    def get_holdings(self) -> Dict[str, int]:
+        """Report the current holdings of the user."""
+        return dict(self.holdings)
+
+    def get_profit_loss(self) -> float:
+        """Report the user's profit or loss at any point in time."""
         return self.calculate_profit_loss()
 
-    def list_transactions(self):
-        """ List all transactions made by the user. """
+    def list_transactions(self) -> List[Dict[str, float | int | str]]:
+        """List all transactions made by the user."""
         return [transaction.model_dump() for transaction in self.transactions]
     
     def report(self) -> str:
-        """ Return a json string representing the account.  """
+        """Return a json string representing the account."""
         portfolio_value = self.calculate_portfolio_value()
         self.portfolio_value_time_series.append((datetime.now().strftime("%Y-%m-%d %H:%M:%S"), portfolio_value))
         self.save()
-        pnl = self.calculate_profit_loss(portfolio_value)
+        pnl = self.calculate_profit_loss()
         data = self.model_dump()
         data["total_portfolio_value"] = portfolio_value
         data["total_profit_loss"] = pnl
@@ -163,12 +181,12 @@ class Account(BaseModel):
         return json.dumps(data)
     
     def get_strategy(self) -> str:
-        """ Return the strategy of the account """
+        """Return the strategy of the account."""
         write_log(self.name, "account", f"Retrieved strategy")
         return self.strategy
     
     def change_strategy(self, strategy: str) -> str:
-        """ At your discretion, if you choose to, call this to change your investment strategy for the future """
+        """Change investment strategy for future decisions."""
         self.strategy = strategy
         self.save()
         write_log(self.name, "account", f"Changed strategy")
