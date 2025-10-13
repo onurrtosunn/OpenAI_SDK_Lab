@@ -2,9 +2,7 @@ from mcp.server.fastmcp import FastMCP
 from typing import Optional, Dict, Any
 import httpx
 
-
 mcp = FastMCP("fetch_server")
-
 
 @mcp.tool()
 async def fetch_text(url: str, timeout_seconds: int = 15, headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
